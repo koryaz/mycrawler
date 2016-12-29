@@ -30,46 +30,50 @@ func New(h Handler) *Fetcher {
 	}
 }
 
-func (f *Fetcher) Start(s string) {
-	fmt.Printf("Fetcher started\n")
-	fmt.Printf("First url to fetch: %s\n", s)
-	var err error
-	f.baseURL, err = url.Parse(s)
-	if err != nil {
-		fmt.Printf("%s\n", err)
-		return
-	}
+func (f *Fetcher) Start(c <-chan string, fetcherNum int) {
+	fmt.Printf("Fetcher %d started\n", fetcherNum)
 
-	f.urlsnonvisited = append(f.urlsnonvisited, s)
 	for {
-		//Quit loop if no more urls
-		if len(f.urlsnonvisited) <= 0 {
-			fmt.Printf("No more urls to fetch\n")
-			break
-		}
-
-		//Do request for next non visited url and add url to visited list
-		nextRawURL, nextLinkExist := f.getNextLinkToRequest()
-		if !nextLinkExist {
-			fmt.Printf("No more links. End of execution\n")
-			break
-		}
-		fmt.Printf("Next url to fetch: %s\n", nextRawURL)
-		parsedURL, err := url.Parse(nextRawURL)
+		urlStr := <-c
+		fmt.Printf("New url from user to fetch: %s\n", urlStr)
+		var err error
+		f.baseURL, err = url.Parse(urlStr)
 		if err != nil {
 			fmt.Printf("%s\n", err)
-			continue
-		} else {
-			res, err := f.doRequest(parsedURL)
+			return
+		}
+
+		f.urlsnonvisited = append(f.urlsnonvisited, urlStr)
+		for {
+			//Quit loop if no more urls
+			if len(f.urlsnonvisited) <= 0 {
+				fmt.Printf("No more urls to fetch\n")
+				break
+			}
+
+			//Do request for next non visited url and add url to visited list
+			nextRawURL, nextLinkExist := f.getNextLinkToRequest()
+			if !nextLinkExist {
+				fmt.Printf("No more links. End of execution\n")
+				break
+			}
+			fmt.Printf("Next url to fetch: %s\n", nextRawURL)
+			parsedURL, err := url.Parse(nextRawURL)
 			if err != nil {
 				fmt.Printf("%s\n", err)
 				continue
 			} else {
-				fmt.Printf("Url fetched sucessfully: %s\n", nextRawURL)
+				res, err := f.doRequest(parsedURL)
+				if err != nil {
+					fmt.Printf("%s\n", err)
+					continue
+				} else {
+					fmt.Printf("Url fetched sucessfully: %s\n", nextRawURL)
 
-				//Handle response body and add new links to non visited list
-				//Handler.Handle(parsedURL.String(), parsedURL, res, err)
-				f.parseLinksInResponseBody(&res.Body)
+					//Handle response body and add new links to non visited list
+					//Handler.Handle(parsedURL.String(), parsedURL, res, err)
+					f.parseLinksInResponseBody(&res.Body)
+				}
 			}
 		}
 	}
